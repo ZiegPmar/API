@@ -1,22 +1,76 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 import logging
+import jwt
+import datetime
+from passlib.context import CryptContext
+from models import Base, User, Role
 
-# Configuration du logging
-logging.basicConfig(
-    filename="api_logs.txt",  # Fichier de logs
-    level=logging.INFO,        # Niveau de log
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+# Configuration
+DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
+SECRET_KEY = "CeLnMdpToken69000*"
+ALGORITHM = "HS256"
+
+# DB + ORM
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base.metadata.create_all(bind=engine)
+
+# Logger
+logging.basicConfig(filename="api_logs.txt", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 app = FastAPI()
 
-# Bdd ( pas une vraie, c'est une simulation )
-badge_db = {}
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# -----------------------------
+# --- MODELS Pydantic
+# -----------------------------
 
 class Badge(BaseModel):
-    id: str
+    uid: str
+    prenom: str
     role: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+# -----------------------------
+# --- DEPENDANCES
+# -----------------------------
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def create_access_token(data: dict, expires_delta: datetime.timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.datetime.utcnow() + (expires_delta or datetime.timedelta(hours=4))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(status_code=401, detail="Token invalide ou expiré")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username != "EvanPierreSarah":
+            raise credentials_exception
+        return username
+    except jwt.PyJWTError:
+        raise credentials_exception
+
+# -----------------------------
+# --- MIDDLEWARE
+# -----------------------------
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -25,46 +79,53 @@ async def log_requests(request: Request, call_next):
     logging.info(f"Réponse envoyée avec statut {response.status_code}")
     return response
 
+# -----------------------------
+# --- ROUTES
+# -----------------------------
+
 @app.get("/")
 def home():
-    logging.info("Accès à la page d'accueil")
-    return {"message": "Bienvenue sur mon API FastAPI RFID 🚀"}
+    return {"message": "Bienvenue sur l'API RFID connectée à MySQL 🎉"}
 
-# Ajouter un badge
+@app.post("/token", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    if form_data.username == "EvanPierreSarah" and form_data.password == "CeLnMdpToken69000*":
+        token = create_access_token({"sub": form_data.username})
+        return {"access_token": token, "token_type": "bearer"}
+    raise HTTPException(status_code=401, detail="Identifiants invalides")
+
 @app.post("/badge")
-def add_badge(badge: Badge):
-    if badge.id in badge_db:
-        logging.warning(f"Tentative d'ajout d'un badge déjà existant : {badge.id}")
+def add_badge(badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.uid == badge.uid).first()
+    if existing:
         raise HTTPException(status_code=400, detail="Badge déjà enregistré")
-    badge_db[badge.id] = badge.role
-    logging.info(f"Badge ajouté : ID={badge.id}, Role={badge.role}")
-    return {"message": "Badge ajouté", "id": badge.id, "role": badge.role}
+    new_user = User(uid=badge.uid, prenom=badge.prenom, role=badge.role)
+    db.add(new_user)
+    db.commit()
+    return {"message": "Badge ajouté", "uid": badge.uid, "prenom": badge.prenom, "role": badge.role}
 
-# Vérifier un badge
-@app.get("/scan/{badge_id}")
-def scan_badge(badge_id: str):
-    if badge_id in badge_db:
-        logging.info(f"Badge reconnu : ID={badge_id}, Role={badge_db[badge_id]}")
-        return {"message": "Badge reconnu", "id": badge_id, "role": badge_db[badge_id]}
-    logging.warning(f"Badge non reconnu : {badge_id}")
+@app.get("/scan/{badge_uid}")
+def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    badge = db.query(User).filter(User.uid == badge_uid).first()
+    if badge:
+        return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "prenom": badge.prenom}
     return {"message": "Badge non reconnu"}
 
-# Modifier un badge
-@app.put("/badge/{badge_id}")
-def update_badge(badge_id: str, badge: Badge):
-    if badge_id not in badge_db:
-        logging.warning(f"Tentative de modification d'un badge non trouvé : {badge_id}")
+@app.put("/badge/{badge_uid}")
+def update_badge(badge_uid: str, badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    user_db = db.query(User).filter(User.uid == badge_uid).first()
+    if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
-    badge_db[badge_id] = badge.role
-    logging.info(f"Badge mis à jour : ID={badge_id}, Nouveau Role={badge.role}")
-    return {"message": "Badge mis à jour", "id": badge_id, "role": badge.role}
+    user_db.prenom = badge.prenom
+    user_db.role = badge.role
+    db.commit()
+    return {"message": "Badge mis à jour", "uid": badge_uid, "prenom": badge.prenom, "role": badge.role}
 
-# Supprimer un badge
-@app.delete("/badge/{badge_id}")
-def delete_badge(badge_id: str):
-    if badge_id not in badge_db:
-        logging.warning(f"Tentative de suppression d'un badge non trouvé : {badge_id}")
+@app.delete("/badge/{badge_uid}")
+def delete_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    user_db = db.query(User).filter(User.uid == badge_uid).first()
+    if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
-    del badge_db[badge_id]
-    logging.info(f"Badge supprimé : ID={badge_id}")
-    return {"message": "Badge supprimé", "id": badge_id}
+    db.delete(user_db)
+    db.commit()
+    return {"message": "Badge supprimé", "uid": badge_uid}
