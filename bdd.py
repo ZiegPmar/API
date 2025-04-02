@@ -1,8 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi import FastAPI, Depends
 import pymysql
 
-# Configuration de la BDD
+# Remplace les valeurs par tes propres informations
 DATABASE_URL = "mysql+pymysql://evan:ziegheil69@217.154.21.156/rfid_access"
 
 # Création de l'engine SQLAlchemy
@@ -19,6 +20,5 @@ def check_db_connection():
     except Exception as e:
         print(f"❌ Erreur de connexion à la base de données : {e}")
 
-# Test connexion
-if __name__ == "__main__":
-    check_db_connection()
+# Appel de la fonction au démarrage
+check_db_connection()
