@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends
 import pymysql
 
 # Remplace les valeurs par tes propres informations
-DATABASE_URL = "mysql+pymysql://evan:ziegheil69@217.154.21.156/rfid_access"
+DATABASE_URL = "mysql+pymysql://evan:ziegheil69@217.154.21.156:3306/rfid_access"
 
 # Création de l'engine SQLAlchemy
 engine = create_engine(DATABASE_URL)
