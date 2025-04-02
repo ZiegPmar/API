@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 import logging
 import jwt
-import datetime
+from datetime import datetime, timedelta 
 from passlib.context import CryptContext
 from models import Base, User, Log
 
@@ -51,11 +51,12 @@ def get_db():
     finally:
         db.close()
 
-def create_access_token(data: dict, expires_delta: datetime.timedelta = None):
+def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    expire = datetime.datetime.utcnow() + (expires_delta or datetime.timedelta(hours=4))
+    expire = datetime.utcnow() + (expires_delta or timedelta(hours=4))  # ⬅ corrigé
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(status_code=401, detail="Token invalide ou expiré")
