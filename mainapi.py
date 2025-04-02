@@ -14,7 +14,12 @@ import os
 # --- CONFIGURATION
 # -----------------------------
 
-DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
+DB_USER_CODE_API = os.getenv("DB_USER_CODE_API", "default_user")
+DB_PASSWORD_CODE_API = os.getenv("DB_PASSWORD_CODE_API", "default_password")
+DB_HOST_CODE_API = os.getenv("DB_HOST_CODE_API", "localhost")
+DB_NAME_CODE_API = os.getenv("DB_NAME_CODE_API", "test_db")
+
+DATABASE_URL = f"mysql+mysqlconnector://{DB_USER_CODE_API}:{DB_PASSWORD_CODE_API}@{DB_HOST_CODE_API}/{DB_NAME_CODE_API}"
 SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 ALGORITHM = "HS256"
 
