@@ -15,7 +15,8 @@ SECRET_KEY = "CeLnMdpToken69000*"
 ALGORITHM = "HS256"
 
 # DB + ORM
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, echo=True)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
@@ -96,6 +97,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @app.post("/badge")
 def add_badge(badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    badge.uid = badge.uid.replace(" ", "").lower()  # nettoie l'uid avant insertion
     existing = db.query(User).filter(User.uid == badge.uid).first()
     if existing:
         raise HTTPException(status_code=400, detail="Badge déjà enregistré")
@@ -106,6 +108,7 @@ def add_badge(badge: Badge, user=Depends(get_current_user), db: Session = Depend
 
 @app.get("/scan/{badge_uid}")
 def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie l'uid scanné
     badge = db.query(User).filter(User.uid == badge_uid).first()
     if badge:
         return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "prenom": badge.prenom}
@@ -113,6 +116,7 @@ def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Dep
 
 @app.put("/badge/{badge_uid}")
 def update_badge(badge_uid: str, badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie avant la recherche
     user_db = db.query(User).filter(User.uid == badge_uid).first()
     if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
@@ -123,6 +127,7 @@ def update_badge(badge_uid: str, badge: Badge, user=Depends(get_current_user), d
 
 @app.delete("/badge/{badge_uid}")
 def delete_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie avant la recherche
     user_db = db.query(User).filter(User.uid == badge_uid).first()
     if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
