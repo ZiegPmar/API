@@ -7,7 +7,7 @@ import logging
 import jwt
 import datetime
 from passlib.context import CryptContext
-from models import Base, User, Role, Log
+from models import Base, User, Log
 
 # Configuration
 DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
