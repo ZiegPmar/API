@@ -12,8 +12,9 @@ class User(Base):
     role = Column(Integer, nullable=False)                     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-
-class Role(Base):
-    __tablename__ = "roles"
+class Log(Base):
+    __tablename__ = "logs"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
+    date = Column(String(255), nullable=False)
+    heure = Column(String(255), nullable=False)
+    message = Column(String(255), nullable=False)
