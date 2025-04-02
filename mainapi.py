@@ -7,7 +7,7 @@ import logging
 import jwt
 import datetime
 from passlib.context import CryptContext
-from models import Base, User, Role
+from models import Base, User, Role, Log
 
 # Configuration
 DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
@@ -33,7 +33,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class Badge(BaseModel):
     uid: str
-    name: str  # ✅ correction
+    name: str
     role: str
 
 class Token(BaseModel):
@@ -69,14 +69,31 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
 
 # -----------------------------
-# --- MIDDLEWARE
+# --- FONCTION DE LOG EN BASE
+# -----------------------------
+
+from datetime import datetime
+
+def write_log(db: Session, message: str):
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    heure_str = now.strftime("%H:%M:%S")
+    log_entry = Log(date=date_str, heure=heure_str, message=message)
+    db.add(log_entry)
+    db.commit()
+
+# -----------------------------
+# --- MIDDLEWARE AVEC LOG BDD
 # -----------------------------
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logging.info(f"Requête {request.method} reçue sur {request.url}")
     response = await call_next(request)
-    logging.info(f"Réponse envoyée avec statut {response.status_code}")
+    try:
+        db = SessionLocal()
+        write_log(db, f"Requête {request.method} sur {request.url.path} - Status {response.status_code}")
+    finally:
+        db.close()
     return response
 
 # -----------------------------
@@ -112,17 +129,6 @@ def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Dep
     if badge:
         return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "name": badge.name}
     return {"message": "Badge non reconnu"}
-
-@app.put("/badge/{badge_uid}")
-def update_badge(badge_uid: str, badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    badge_uid = badge_uid.replace(" ", "").lower()
-    user_db = db.query(User).filter(User.uid == badge_uid).first()
-    if not user_db:
-        raise HTTPException(status_code=404, detail="Badge non trouvé")
-    user_db.name = badge.name
-    user_db.role = badge.role
-    db.commit()
-    return {"message": "Badge mis à jour", "uid": badge_uid, "name": badge.name, "role": badge.role}
 
 @app.delete("/badge/{badge_uid}")
 def delete_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
