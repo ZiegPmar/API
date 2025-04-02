@@ -8,13 +8,14 @@ import jwt
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from models import Base, User, Log
+import os
 
 # -----------------------------
 # --- CONFIGURATION
 # -----------------------------
 
 DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
-SECRET_KEY = "CeLnMdpToken69000*"
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 ALGORITHM = "HS256"
 
 # Contrôle horaire par rôle
