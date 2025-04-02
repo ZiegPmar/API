@@ -15,8 +15,7 @@ SECRET_KEY = "CeLnMdpToken69000*"
 ALGORITHM = "HS256"
 
 # DB + ORM
-engine = create_engine(DATABASE_URL, echo=True)
-
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
@@ -34,7 +33,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class Badge(BaseModel):
     uid: str
-    prenom: str
+    name: str  # ✅ correction
     role: str
 
 class Token(BaseModel):
@@ -97,37 +96,37 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @app.post("/badge")
 def add_badge(badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    badge.uid = badge.uid.replace(" ", "").lower()  # nettoie l'uid avant insertion
+    badge.uid = badge.uid.replace(" ", "").lower()
     existing = db.query(User).filter(User.uid == badge.uid).first()
     if existing:
         raise HTTPException(status_code=400, detail="Badge déjà enregistré")
-    new_user = User(uid=badge.uid, prenom=badge.prenom, role=badge.role)
+    new_user = User(uid=badge.uid, name=badge.name, role=badge.role)
     db.add(new_user)
     db.commit()
-    return {"message": "Badge ajouté", "uid": badge.uid, "prenom": badge.prenom, "role": badge.role}
+    return {"message": "Badge ajouté", "uid": badge.uid, "name": badge.name, "role": badge.role}
 
 @app.get("/scan/{badge_uid}")
 def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie l'uid scanné
+    badge_uid = badge_uid.replace(" ", "").lower()
     badge = db.query(User).filter(User.uid == badge_uid).first()
     if badge:
-        return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "prenom": badge.prenom}
+        return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "name": badge.name}
     return {"message": "Badge non reconnu"}
 
 @app.put("/badge/{badge_uid}")
 def update_badge(badge_uid: str, badge: Badge, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie avant la recherche
+    badge_uid = badge_uid.replace(" ", "").lower()
     user_db = db.query(User).filter(User.uid == badge_uid).first()
     if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
-    user_db.prenom = badge.prenom
+    user_db.name = badge.name
     user_db.role = badge.role
     db.commit()
-    return {"message": "Badge mis à jour", "uid": badge_uid, "prenom": badge.prenom, "role": badge.role}
+    return {"message": "Badge mis à jour", "uid": badge_uid, "name": badge.name, "role": badge.role}
 
 @app.delete("/badge/{badge_uid}")
 def delete_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    badge_uid = badge_uid.replace(" ", "").lower()  # nettoie avant la recherche
+    badge_uid = badge_uid.replace(" ", "").lower()
     user_db = db.query(User).filter(User.uid == badge_uid).first()
     if not user_db:
         raise HTTPException(status_code=404, detail="Badge non trouvé")
