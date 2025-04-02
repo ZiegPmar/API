@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 import logging
 import jwt
-from datetime import datetime, timedelta 
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from models import Base, User, Log
 
@@ -76,7 +76,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 from datetime import datetime
 
 def write_log(db: Session, message: str):
-    now = datetime.now()
+    now = datetime.utcnow() + timedelta(hours=2)  # ajustement pour l'heure de france
     date_str = now.strftime("%Y-%m-%d")
     heure_str = now.strftime("%H:%M:%S")
     log_entry = Log(date=date_str, heure=heure_str, message=message)
