@@ -5,25 +5,39 @@ from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 import logging
 import jwt
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from models import Base, User, Log
 
-# Configuration
+# -----------------------------
+# --- CONFIGURATION
+# -----------------------------
+
 DATABASE_URL = "mysql+mysqlconnector://evan:ziegheil69@217.154.21.156/rfid_access"
 SECRET_KEY = "CeLnMdpToken69000*"
 ALGORITHM = "HS256"
 
-# DB + ORM
+# Contrôle horaire par rôle
+ROLE_ACCESS = {
+    "1": {"open": 0, "close": 24},    # Admin accès 24/24
+    "2": {"open": 8, "close": 18},    # Employé accès 8h-18h
+}
+
+# -----------------------------
+# --- BASE DE DONNÉES
+# -----------------------------
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
-# Logger
+# -----------------------------
+# --- LOGGING
+# -----------------------------
+
 logging.basicConfig(filename="api_logs.txt", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 app = FastAPI()
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -41,7 +55,7 @@ class Token(BaseModel):
     token_type: str
 
 # -----------------------------
-# --- DEPENDANCES
+# --- DÉPENDANCES
 # -----------------------------
 
 def get_db():
@@ -53,10 +67,9 @@ def get_db():
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(hours=4))  # ⬅ corrigé
+    expire = datetime.utcnow() + (expires_delta or timedelta(hours=4))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(status_code=401, detail="Token invalide ou expiré")
@@ -73,10 +86,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # --- FONCTION DE LOG EN BASE
 # -----------------------------
 
-from datetime import datetime
-
 def write_log(db: Session, message: str):
-    now = datetime.utcnow() + timedelta(hours=2)  # ajustement pour l'heure de france
+    now = datetime.utcnow() + timedelta(hours=2)
     date_str = now.strftime("%Y-%m-%d")
     heure_str = now.strftime("%H:%M:%S")
     log_entry = Log(date=date_str, heure=heure_str, message=message)
@@ -127,9 +138,20 @@ def add_badge(badge: Badge, user=Depends(get_current_user), db: Session = Depend
 def scan_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
     badge_uid = badge_uid.replace(" ", "").lower()
     badge = db.query(User).filter(User.uid == badge_uid).first()
-    if badge:
-        return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "name": badge.name}
-    return {"message": "Badge non reconnu"}
+
+    if not badge:
+        return {"message": "Badge non reconnu"}
+
+    # Contrôle horaire selon le rôle
+    role = str(badge.role)
+    access_rule = ROLE_ACCESS.get(role, {"open": 0, "close": 24})
+    now = datetime.utcnow() + timedelta(hours=2)
+    current_hour = now.hour
+
+    if not (access_rule["open"] <= current_hour < access_rule["close"]):
+        return {"message": "Accès refusé - Hors horaires autorisés", "heure_actuelle": now.strftime("%H:%M:%S"), "autorisé_entre": f"{access_rule['open']:02d}:00 et {access_rule['close']:02d}:00", "role": role}
+
+    return {"message": "Badge reconnu", "id": badge.uid, "role": badge.role, "name": badge.name}
 
 @app.delete("/badge/{badge_uid}")
 def delete_badge(badge_uid: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
