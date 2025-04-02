@@ -7,11 +7,10 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uid = Column(String(50), unique=True, nullable=False)
-    name = Column(String(100), nullable=False)
-    role = Column(String(255), nullable=False)  # <-- maintenant c'est un texte
+    uid = Column(String(50), unique=True, nullable=False)      
+    name = Column(String(100), nullable=False)                
+    role = Column(Integer, nullable=False)                     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
 
 
 class Role(Base):
