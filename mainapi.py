@@ -33,7 +33,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class Badge(BaseModel):
     uid: str
-    name: str  # ✅ correction
+    name: str
     role: str
 
 class Token(BaseModel):
